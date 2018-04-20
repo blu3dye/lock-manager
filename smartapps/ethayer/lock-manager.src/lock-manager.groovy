@@ -1175,30 +1175,50 @@ def lockEvent(evt) {
   def data = new JsonSlurper().parseText(evt.data)
   debugger("Lock event. ${data.method}")
 
-  switch(data.method) {
-    case 'keypad':
-      keypadLockEvent(evt, data)
-      break
-    case 'manual':
-      manualUnlock(evt)
-      break
-    case 'command':
-      commandUnlock(evt)
-      break
-    case 'auto':
-      autoLock(evt)
-      break
+  def message = ''
+  def userApp = findSlotUserApp(data.usedCode)
+  def hubApp = location.getHubs()
+
+  if (evt.value == 'locked') {
+    message = "${hubApp} ${lock.label} locked"
+    debugger(message)
+    if (keypadLockRoutine) {
+      executeHelloPresenceCheck(keypadLockRoutine)
+    }
+    if (alexaKeypadLock) {
+      askAlexaLock(message)
+    }
+    if (notifyKeypadLock || notifyLock) {
+      sendLockMessage(message)
+    }
+  } else if (evt.value == 'unlocked') {
+    if (userApp) {
+      userDidUnlock(userApp)
+    } else if (notifyManualUnlock) {
+      message = "${hubApp} ${lock.label} manually unlocked"
+      debugger(message)
+      if (manualUnlockRoutine) {
+        executeHelloPresenceCheck(manualUnlockRoutine)
+      } else if (parent.manualUnlockRoutine) {
+        parent.executeHelloPresenceCheck(parent.manualUnlockRoutine)
+      }
+      sendLockMessage(message)
+    } else {
+      debugger('Lock was locked by unknown user!')
+      // unlocked by unknown user?
+    }
   }
 }
 
 def keypadLockEvent(evt, data) {
   def message
   def userApp = findSlotUserApp(data.usedCode)
+  def hubApp = location.getHubs()
   if (evt.value == 'locked') {
     if (userApp) {
       userDidLock(userApp)
     } else {
-      message = "${lock.label} was locked by keypad"
+      message = "${hubApp} ${lock.label} locked"
       debugger(message)
       if (keypadLockRoutine) {
         executeHelloPresenceCheck(keypadLockRoutine)
@@ -1221,7 +1241,8 @@ def keypadLockEvent(evt, data) {
 }
 
 def userDidLock(userApp) {
-  def message = "${lock.label} was locked by ${userApp.userName}"
+  def hubApp = location.getHubs()
+  def message = "${userApp.userName} locked ${hubApp} ${lock.label}"
   debugger(message)
   // user specific
   if (userApp.userLockPhrase) {
@@ -1246,8 +1267,9 @@ def userDidLock(userApp) {
 }
 
 def userDidUnlock(userApp) {
+  def hubApp = location.getHubs()
   def message
-  message = "${lock.label} was unlocked by ${userApp.userName}"
+  message = "${userApp.userName} unlocked ${hubApp} ${lock.label}"
   debugger(message)
   userApp.incrementLockUsage(lock.id)
   if (!userApp.isNotBurned()) {
@@ -1277,10 +1299,11 @@ def userDidUnlock(userApp) {
 }
 
 def manualUnlock(evt) {
-  def message
+  def hubApp = location.getHubs()
+  def message = ''
   if (evt.value == 'locked') {
     // locked manually
-    message = "${lock.label} was locked manually"
+    message = "${hubApp} ${lock.label} locked"
     debugger(message)
     // lock specific
     if (manualLockRoutine) {
@@ -1298,7 +1321,7 @@ def manualUnlock(evt) {
       askAlexaLock(message)
     }
   } else if (evt.value == 'unlocked') {
-    message = "${lock.label} was unlocked manually"
+    message = "${hubApp} ${lock.label} manually unlocked"
     debugger(message)
     // lock specific
     if (manualUnlockRoutine) {
@@ -1308,6 +1331,9 @@ def manualUnlock(evt) {
     if (parent.manualUnlockRoutine) {
       parent.executeHelloPresenceCheck(parent.manualUnlockRoutine)
     }
+    if (notifyManualUnlock) {
+      sendLockMessage(message)
+    }
   }
 }
 
@@ -1316,6 +1342,7 @@ def commandUnlock(evt) {
 }
 def autoLock(evt) {
   // no options for this scenario yet
+
 }
 
 def setCodes() {
@@ -1491,12 +1518,13 @@ def findSlotUserApp(slot) {
 
 def codeInform(slot, action) {
   def userApp = findSlotUserApp(slot)
+  def hubApp = location.getHubs()
   if (userApp) {
     def message = ''
     def shouldSend = false
     switch(action) {
       case 'access':
-        message = "${userApp.userName} now has access to ${lock.label}"
+        message = "${userApp.userName} enabled on ${hubApp} ${lock.label}"
         // add name
         nameSlot(slot, userApp.userName)
         if (userApp.notifyAccessStart || parent.notifyAccessStart) {
@@ -1506,7 +1534,7 @@ def codeInform(slot, action) {
       case 'revoke':
         // remove name
         nameSlot(slot, false)
-        message = "${userApp.userName} no longer has access to ${lock.label}"
+        message = "${userApp.userName} disabled on ${hubApp} ${lock.label}"
         if (userApp.notifyAccessEnd || parent.notifyAccessEnd) {
           shouldSend = true
         }
@@ -3075,27 +3103,28 @@ def airbnbCalenderCheck() {
   } catch (e) {
     log.error "something went wrong: $e"
   }
-
-  if ((atomicState.userCode != code && event) || (state.guestName != event['summary'])) {
-    debugger("airbnbCalenderCheck: setting new user code: ${code}")
-    state.guestName = event['summary']
-    state.eventStart = readableDateTime(event['dtStart'])
-    state.eventEnd = readableDateTime(event['dtEnd'])
-
-    setNewCode(code)
+  if (event) {
+    if ((atomicState.userCode != code) || (state.guestName != event['summary'])) {
+      debugger("airbnbCalenderCheck: setting new user code: ${code}")
+      state.guestName = event['summary']
+      state.eventStart = readableDateTime(event['dtStart'])
+      state.eventEnd = readableDateTime(event['dtEnd'])
+      setNewCode(code)
+    }
   }
 }
 
 def setNewCode(code) {
+  def hubApp = location.getHubs()
   atomicState.userCode = code
   resetAllLocksUsage()
   parent.setAccess()
 
   if (settings.notifyCodeChange) {
     if (code != '') {
-      sendMessageViaUser("${userName}: Setting code ${settings.userSlot} to ${code} for ${state.guestName}")
+      sendMessageViaUser("${hubApp} ${userName} code set to ${code} for ${state.guestName}")
     } else {
-      sendMessageViaUser("${userName}: Clearing code ${settings.userSlot}")
+      sendMessageViaUser("${hubApp} ${userName} code cleared")
     }
   }
 }
@@ -3172,7 +3201,6 @@ def parseICal(ByteArrayInputStream is) {
           iCalEvent.put('dtStart', parseDate(iCalEvent['dtStartString'], lateCheckoutTime))
         }
       }
-
       if (currentEvent(today, iCalEvent)) {
         events.push(iCalEvent.clone())
       }
@@ -3238,7 +3266,6 @@ def parseICal(ByteArrayInputStream is) {
       }
     }
   }
-
   // adjust times if there are multiple guests on the same day
   if((earlyCheckin || lateCheckout) && events.size() > 1) {
     if(events[0]['summary'] != 'Not available' && events[1]['summary'] != 'Not available') {
@@ -3247,15 +3274,19 @@ def parseICal(ByteArrayInputStream is) {
         events[1].put('dtEnd', parseDate(events[1]['dtEndString'], checkoutTime))
         events[1].put('dtStart', parseDate(events[1]['dtStartString'], checkoutTime))
     }
-    if (currentEvent(today, events[0])) {
+/*    if (currentEvent(today, events[0])) {
       return events[0];
     } else if (currentEvent(today, events[1])) {
+      return events[1];
+    }*/
+    if (events[0]['dtStartString'] > events[1]['dtStartString']) {
+      return events[0];
+    } else {
       return events[1];
     }
   } else if (events.size() == 1) {
     return events[0];
   }
-
   return null
 }
 
