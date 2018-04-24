@@ -1242,7 +1242,7 @@ def keypadLockEvent(evt, data) {
 
 def userDidLock(userApp) {
   def hubApp = location.getHubs()
-  def message = "${userApp.userName} locked ${hubApp} ${lock.label}"
+  def message = "${hubApp} ${userApp.userName} locked ${lock.label}"
   debugger(message)
   // user specific
   if (userApp.userLockPhrase) {
@@ -1269,7 +1269,7 @@ def userDidLock(userApp) {
 def userDidUnlock(userApp) {
   def hubApp = location.getHubs()
   def message
-  message = "${userApp.userName} unlocked ${hubApp} ${lock.label}"
+  message = "${hubApp} ${userApp.userName} unlocked ${lock.label}"
   debugger(message)
   userApp.incrementLockUsage(lock.id)
   if (!userApp.isNotBurned()) {
@@ -1524,7 +1524,7 @@ def codeInform(slot, action) {
     def shouldSend = false
     switch(action) {
       case 'access':
-        message = "${userApp.userName} enabled on ${hubApp} ${lock.label}"
+        message = "${hubApp} ${userApp.userName} enabled on ${lock.label}"
         // add name
         nameSlot(slot, userApp.userName)
         if (userApp.notifyAccessStart || parent.notifyAccessStart) {
@@ -1534,7 +1534,7 @@ def codeInform(slot, action) {
       case 'revoke':
         // remove name
         nameSlot(slot, false)
-        message = "${userApp.userName} disabled on ${hubApp} ${lock.label}"
+        message = "${hubApp} ${userApp.userName} disabled on ${lock.label}"
         if (userApp.notifyAccessEnd || parent.notifyAccessEnd) {
           shouldSend = true
         }
@@ -3201,6 +3201,7 @@ def parseICal(ByteArrayInputStream is) {
           iCalEvent.put('dtStart', parseDate(iCalEvent['dtStartString'], lateCheckoutTime))
         }
       }
+
       if (currentEvent(today, iCalEvent)) {
         events.push(iCalEvent.clone())
       }
@@ -3266,6 +3267,7 @@ def parseICal(ByteArrayInputStream is) {
       }
     }
   }
+
   // adjust times if there are multiple guests on the same day
   if((earlyCheckin || lateCheckout) && events.size() > 1) {
     if(events[0]['summary'] != 'Not available' && events[1]['summary'] != 'Not available') {
@@ -3274,11 +3276,6 @@ def parseICal(ByteArrayInputStream is) {
         events[1].put('dtEnd', parseDate(events[1]['dtEndString'], checkoutTime))
         events[1].put('dtStart', parseDate(events[1]['dtStartString'], checkoutTime))
     }
-/*    if (currentEvent(today, events[0])) {
-      return events[0];
-    } else if (currentEvent(today, events[1])) {
-      return events[1];
-    }*/
     if (events[0]['dtStartString'] > events[1]['dtStartString']) {
       return events[0];
     } else {
@@ -3287,6 +3284,7 @@ def parseICal(ByteArrayInputStream is) {
   } else if (events.size() == 1) {
     return events[0];
   }
+
   return null
 }
 
