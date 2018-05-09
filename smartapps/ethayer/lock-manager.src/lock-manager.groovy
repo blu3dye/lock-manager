@@ -2749,7 +2749,7 @@ def airbnbLandingPage() {
 def airbnbSetupPage() {
   dynamicPage(name: 'airbnbSetupPage', title: 'Setup Lock', nextPage: 'airbnbMainPage', uninstall: true) {
     section('Choose details for this Airbnb automation') {
-      def defaultTime = timeToday("13:00", timeZone()).format(smartThingsDateFormat(), timeZone())
+      def defaultTime = timeToday("16:00", timeZone()).format(smartThingsDateFormat(), timeZone())
       def defaultEarlyCheckin = timeToday("8:00", timeZone()).format(smartThingsDateFormat(), timeZone())
       def defaultLateCheckout = timeToday("17:00", timeZone()).format(smartThingsDateFormat(), timeZone())
       input(name: 'ical', type: 'text', title: 'Airbnb Calendar Link',
@@ -3276,7 +3276,7 @@ def parseICal(ByteArrayInputStream is) {
         events[1].put('dtEnd', parseDate(events[1]['dtEndString'], checkoutTime))
         events[1].put('dtStart', parseDate(events[1]['dtStartString'], checkoutTime))
     }
-    if (events[0]['dtStartString'] > events[1]['dtStartString']) {
+    if (events[0]['dtEnd'] >= events[1]['dtStart']) {
       return events[0];
     } else {
       return events[1];
