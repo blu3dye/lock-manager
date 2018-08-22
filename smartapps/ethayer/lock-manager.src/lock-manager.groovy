@@ -3227,9 +3227,14 @@ def parseICal(ByteArrayInputStream is) {
           // we found a compound date key
           subKey = key.replaceFirst(compoundKey + ';', '').trim()
         }
-
-        if (key == 'DESCRIPTION') {
-          // we found the start of the description
+ 
+        if (key == 'DESCRIPTION' || (key == 'SUMMARY' && (value.findAll("homeaway") || value.findAll("repeat")))) {
+          // we found the start of the description or summary
+	  // consolidated homeaway calendar and repeat guests into airbnb's ical
+	  // usage: you have to add notes to the first day of the guests stay using the format below
+	  // NAME: test (homeaway)
+	  // PHONE: +1 (123) 456-7890
+	  // EMAIL: test@tester.com
           key = value.replaceAll(/:.*/, '')
           value = value.replaceFirst(key + ':', '').trim()
         }
@@ -3243,9 +3248,13 @@ def parseICal(ByteArrayInputStream is) {
         else if (key == 'CHECKOUT') { iCalEvent.put('checkout', value) }
         else if (key == 'NIGHTS') { iCalEvent.put('nights', value) }
         else if (key == 'EMAIL') { iCalEvent.put('email', value) }
-        else if (key == 'SUMMARY') { iCalEvent.put('summary', value) }
+        else if (key == 'SUMMARY' || key == 'NAME') { iCalEvent.put('summary', value) }
         else if (key == 'LOCATION') { iCalEvent.put('location', value) }
-        else if (key == 'PHONE') { sincePhone = 0; }
+        // set the phone number here
+	else if (key == 'PHONE') {
+          iCalEvent.put('phone', value)
+          sincePhone = 0;
+        }
         else if (compoundKey == 'DTSTART') {
           iCalEvent.put('dtStartString', value)
           iCalEvent.put('dtStart', parseDate(value, startTimeOfDay))
@@ -3256,11 +3265,11 @@ def parseICal(ByteArrayInputStream is) {
           iCalEvent.put('dtEndTz', subKey)
         }
       }
-
-      if (sincePhone == 1) {
+      // moved setting the phone value based on the key instead
+      //if (sincePhone == 1) {
         // phone number
-        iCalEvent.put('phone', line)
-      }
+      //  iCalEvent.put('phone', line)
+      //}
 
       if (line) {
         iCalEvent['record'] = iCalEvent['record'] + line + '\n'
