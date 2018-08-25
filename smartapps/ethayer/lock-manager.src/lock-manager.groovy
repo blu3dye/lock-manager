@@ -3094,9 +3094,14 @@ def airbnbCalenderCheck() {
       if (event) {
         if (event['summary'] == 'Not available') {
           code = ''
-        } else if (event['phone']) {
-          code = event['phone'].replaceAll(/\D/, '')[-4..-1]
-          debugger("airbnbCalenderCheck: ${event['summary']}, phone: ${event['phone']}, code: ${code}")
+        }
+        else if (event['phone_summary'].trim() != '') {
+          code = event['phone_summary'].replaceAll(/\D/, '')[-4..-1]
+          debugger("airbnbCalenderCheck: ${event['summary']}, phone: ${event['phone_summary']}, code: ${code}")
+        }
+        else if (event['phone_description'].trim() != '') {
+          code = event['phone_description'].replaceAll(/\D/, '')[-4..-1]
+          debugger("airbnbCalenderCheck: ${event['summary']}, phone: ${event['phone_description']}, code: ${code}")
         }
       }
     }
@@ -3230,11 +3235,11 @@ def parseICal(ByteArrayInputStream is) {
  
         if (key == 'DESCRIPTION' || (key == 'SUMMARY' && (value.findAll("homeaway") || value.findAll("repeat")))) {
           // we found the start of the description or summary
-	  // consolidated homeaway calendar and repeat guests into airbnb's ical
-	  // usage: you have to add notes to the first day of the guests stay using the format below
-	  // NAME: test (homeaway)
-	  // PHONE: +1 (123) 456-7890
-	  // EMAIL: test@tester.com
+	      // consolidated homeaway calendar and repeat guests into airbnb's ical
+	      // usage: you have to add notes to the first day of the guests stay using the format below
+	      // NAME: test (homeaway)
+	      // PHONE: +1 (123) 456-7890
+	      // EMAIL: test@tester.com
           key = value.replaceAll(/:.*/, '')
           value = value.replaceFirst(key + ':', '').trim()
         }
@@ -3251,25 +3256,26 @@ def parseICal(ByteArrayInputStream is) {
         else if (key == 'SUMMARY' || key == 'NAME') { iCalEvent.put('summary', value) }
         else if (key == 'LOCATION') { iCalEvent.put('location', value) }
         // set the phone number here
-	else if (key == 'PHONE') {
-          iCalEvent.put('phone', value)
-          sincePhone = 0;
+	    else if (key == 'PHONE') {
+          iCalEvent.put('phone_summary', value)
+          sincePhone = 0
         }
         else if (compoundKey == 'DTSTART') {
           iCalEvent.put('dtStartString', value)
           iCalEvent.put('dtStart', parseDate(value, startTimeOfDay))
           iCalEvent.put('dtStartTz', subKey)
-        } else if (compoundKey == 'DTEND') {
+        } 
+        else if (compoundKey == 'DTEND') {
           iCalEvent.put('dtEndString', value)
           iCalEvent.put('dtEnd', parseDate(value, endTimeOfDay))
           iCalEvent.put('dtEndTz', subKey)
         }
       }
       // moved setting the phone value based on the key instead
-      //if (sincePhone == 1) {
+      if (sincePhone == 1) {
         // phone number
-      //  iCalEvent.put('phone', line)
-      //}
+        iCalEvent.put('phone_description', line)
+      }
 
       if (line) {
         iCalEvent['record'] = iCalEvent['record'] + line + '\n'
